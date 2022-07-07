@@ -1,0 +1,153 @@
+---
+title: "Johns Hopkins Data Science Capstone Final Project"
+author: "Jason Parise"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+### Johns Hopkins Data Science Capstone Final Project
+### WORD PREDICTOR GENIE!
+
+## The following code creates required ngram data files used to predict ngrams.
+## Use these generated files in conjunction with server.R and ui.R files.
+## The application will predict the next word of phrases 1-5 letters long.
+
+
+# Required packages. NOTE: This must be used with R version 4.1.3.
+
+```{r packages}
+      library(tidytext)
+      library(tidyverse)
+      library(stringr)
+      library(knitr)
+      library(wordcloud)
+      library(ngram)
+      library(shiny)
+```
+
+# Download and unzip English language data.
+```{r download}
+download.file("https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip", "Coursera-SwiftKey.zip")
+unzip("Coursera-SwiftKey.zip")
+```
+
+# Load and read the data.
+```{r data}
+blogs <- "./final/en_US/en_US.blogs.txt"
+news <- "./final/en_US/en_US.news.txt"
+twitters <- "./final/en_US/en_US.twitter.txt"
+blogs <- readLines(blogs, skipNul = TRUE)
+con <- file(news, open="rb")
+news <- readLines(con,  skipNul = TRUE)
+twitters <- readLines(twitters, skipNul = TRUE)
+```
+
+# Reformat data into more useful dataframes.
+```{r reform}
+blogs <- tibble(text = blogs)
+news <- tibble(text = news)
+twitters <- tibble(text = twitters)
+```
+
+# Recreating a sampling of all the data from 2.5% of the bulk.
+```{r sample}
+set.seed(25)
+sample_percentage <- 0.025
+blog1 <- blogs %>%
+      sample_n(., nrow(blogs)*sample_percentage)
+news1 <- news %>%
+      sample_n(., nrow(news)*sample_percentage)
+twitter1 <- twitters %>%
+      sample_n(., nrow(twitters)*sample_percentage)
+```
+
+# Making data clean and tidy.
+```{r clean}
+TidyData <- bind_rows(
+      mutate(blog1, source = "blogs"),
+      mutate(news1,  source = "news"),
+      mutate(twitter1, source = "twitters"))
+TidyData$source <- as.factor(TidyData$source)
+data("stop_words")
+space <- "[^[:alpha:][:space:]]*"
+urls <- "http[^[:space:]]*"
+character <- "\\b(?=\\w*(\\w)\\1)\\w+\\b"
+CleanTidyData <-  TidyData %>%
+      mutate(text = str_replace_all(text, space, "")) %>%
+      mutate(text = str_replace_all(text, urls, "")) %>%
+      mutate(text = str_replace_all(text, character, "")) %>%
+      mutate(text = iconv(text, "ASCII//TRANSLIT"))
+```
+
+# Ngram generation.
+```{r ngram}
+Unigram <- CleanTidyData %>%
+      unnest_tokens(word, text) %>%
+      anti_join(stop_words)
+
+Bigram <- CleanTidyData %>%
+      unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+Trigram <- CleanTidyData %>%
+      unnest_tokens(trigram, text, token = "ngrams", n = 3)
+
+Quadgram <- CleanTidyData %>%
+      unnest_tokens(quadgram, text, token = "ngrams", n = 4)
+
+Quintgram <- CleanTidyData %>%
+      unnest_tokens(quintgram, text, token = "ngrams", n = 5)
+
+Sextgram <- CleanTidyData %>%
+      unnest_tokens(sextgram, text, token = "ngrams", n = 6)
+
+Bigram1 <- Bigram %>%
+      count(bigram) %>%
+      filter(n > 10) %>%
+      arrange(desc(n))
+
+Trigram1 <- Trigram %>%
+      count(trigram) %>%
+      filter(n > 10) %>%
+      arrange(desc(n))
+      
+Quadgram1 <- Quadgram %>%
+      count(quadgram) %>%
+      filter(n > 10) %>%
+      arrange(desc(n))
+      
+Quintgram1 <- Quintgram %>%
+      count(quintgram) %>%
+      filter(n > 10) %>%
+      arrange(desc(n))
+
+Sextgram1 <- Sextgram %>%
+      count(sextgram) %>%
+      filter(n > 10) %>%
+      arrange(desc(n))
+      
+Bigram2 <- Bigram1 %>%
+      separate(bigram, c("word1", "word2"), sep = " ")
+
+Trigram2 <- Trigram1 %>%
+      separate(trigram, c("word1", "word2", "word3"), sep = " ")
+
+Quadgram2 <- Quadgram1 %>%
+      separate(quadgram, c("word1", "word2", "word3", "word4"), sep = " ")
+
+Quintgram2 <- Quintgram1 %>%
+      separate(quintgram, c("word1", "word2", "word3", "word4", "word5"), sep = " ")
+
+Sextgram2 <- Sextgram1 %>%
+      separate(sextgram, c("word1", "word2", "word3", "word4", "word5", "word6"), sep = " ")
+```
+
+# Save all ngrams for use in the app.
+```{r save}
+dir.create("ngrams")
+
+saveRDS(Bigram2, "./ngrams/bigrams.rds")
+saveRDS(Trigram2, "./ngrams/trigrams.rds")
+saveRDS(Quadgram2,"./ngrams/quadgrams.rds")
+saveRDS(Quintgram2,"./ngrams/quintgrams.rds")
+saveRDS(Sextgram2,"./ngrams/sextgrams.rds")
+```
